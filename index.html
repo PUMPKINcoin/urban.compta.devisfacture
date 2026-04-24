@@ -2,130 +2,112 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>UrbanSportTalent - Business App</title>
+<title>UrbanSportTalent App</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
 <style>
 body {font-family: Arial; background:#0d0d0d; color:white; padding:20px;}
 .container {max-width:700px; margin:auto;}
 .card {background:#1a1a1a; padding:20px; border-radius:10px;}
 input, select {width:100%; padding:10px; margin-top:10px; background:#111; color:white; border:1px solid #333; border-radius:5px;}
 button {margin-top:10px; padding:10px; width:100%; background:red; color:white; border:none; border-radius:5px;}
-button:disabled {background: gray; cursor: not-allowed;}
 .line {display:flex; justify-content:space-between; margin-top:5px;}
 .total {font-size:20px; margin-top:10px;}
 </style>
 </head>
+
 <body>
 <div class="container">
 <div class="card">
 
-<select id="typeDoc" onchange="generateNumber()">
+<select id="typeDoc">
 <option>DEVIS</option>
 <option>FACTURE</option>
 </select>
 
-<input id="numero">
+<input id="numero" placeholder="Numéro">
 
-<select id="clientList" onchange="loadClient()">
-<option value="">-- Choisir un client --</option>
-</select>
+<input type="file" id="logoInput">
+
+<select id="clientList"></select>
 
 <input id="clientNom" placeholder="Nom">
 <input id="clientAdresse" placeholder="Adresse">
-<input id="clientSiret" placeholder="SIRET">
 <input id="clientContact" placeholder="Contact">
 
-<button onclick="saveClient()">💾 Enregistrer client</button>
+<button id="saveClientBtn">💾 Enregistrer client</button>
 
-<select id="categorie" onchange="updateSousCat()">
-<option>Conception</option>
-<option>Captation audiovisuelle</option>
-<option>Production</option>
-<option>Editing</option>
-<option>Diffusion</option>
-</select>
+<select id="categorie"></select>
+<select id="souscat"></select>
 
-<select id="souscat" onchange="updatePrix()"></select>
 <input id="qte" type="number" placeholder="Quantité">
 <input id="prix" readonly>
 
-<button onclick="add()">Ajouter</button>
+<button id="addBtn">Ajouter prestation</button>
 
 <div id="liste"></div>
 <div id="totalBox" class="total">Total : 0€</div>
 
 <input id="remise" type="number" placeholder="Remise %">
-<button onclick="generatePDF()">📄 Générer PDF</button>
+
+<button id="pdfBtn">📄 Générer PDF</button>
 
 </div>
 </div>
 
 <script>
+
+// ================= DATA =================
+let data = {
+  "Conception":[{nom:"Script",prix:19.9},{nom:"Storyboard",prix:54.9}],
+  "Production":[{nom:"Montage",prix:69.9}]
+};
+
+// ================= STATE =================
 let prestations = [];
 let clients = [];
+let logoBase64 = "";
 
-let clientNom, clientAdresse, clientSiret, clientContact;
-let clientList, categorie, souscat, qte, prix, liste, totalBox, typeDoc, numero, remise;
+// ================= DOM =================
+let categorie = document.getElementById("categorie");
+let souscat = document.getElementById("souscat");
+let qte = document.getElementById("qte");
+let prix = document.getElementById("prix");
+let liste = document.getElementById("liste");
+let totalBox = document.getElementById("totalBox");
 
-let data = {
-  "Conception": [
-    { nom: "Script", prix: 19.90 },
-    { nom: "Storyboard", prix: 54.90 },
-    { nom: "Réalisation", prix: 74.90 }
-  ],
-  "Captation audiovisuelle": [
-    { nom: "Fixe", prix: 190.90 },
-    { nom: "Mobile", prix: 118.90 },
-    { nom: "Drone", prix: 290.90 },
-    { nom: "Interview", prix: 89.90 }
-  ],
-  "Production": [
-    { nom: "Dérushage", prix: 44.90 },
-    { nom: "Montage", prix: 69.90 },
-    { nom: "Étalonnage", prix: 14.90 },
-    { nom: "Audio", prix: 14.90 },
-    { nom: "Colorimétrie", prix: 79.90 }
-  ],
-  "Editing": [
-    { nom: "Sous-titres", prix: 27.90 },
-    { nom: "Traduction", prix: 17.90 },
-    { nom: "Format livrable", prix: 0.90 }
-  ],
-  "Diffusion": [
-    { nom: "Publication", prix: 0 }
-  ]
-};
+let clientNom = document.getElementById("clientNom");
+let clientAdresse = document.getElementById("clientAdresse");
+let clientContact = document.getElementById("clientContact");
+let clientList = document.getElementById("clientList");
 
-function showError(msg){ alert("⚠️ " + msg); }
+let typeDoc = document.getElementById("typeDoc");
+let numero = document.getElementById("numero");
+let remise = document.getElementById("remise");
 
-window.onload = function(){
-  clientNom = document.getElementById("clientNom");
-  clientAdresse = document.getElementById("clientAdresse");
-  clientSiret = document.getElementById("clientSiret");
-  clientContact = document.getElementById("clientContact");
-  clientList = document.getElementById("clientList");
-  categorie = document.getElementById("categorie");
-  souscat = document.getElementById("souscat");
-  qte = document.getElementById("qte");
-  prix = document.getElementById("prix");
-  liste = document.getElementById("liste");
-  totalBox = document.getElementById("totalBox");
-  typeDoc = document.getElementById("typeDoc");
-  numero = document.getElementById("numero");
-  remise = document.getElementById("remise");
+// ================= INIT =================
+Object.keys(data).forEach(cat=>{
+  let opt = document.createElement("option");
+  opt.text = cat;
+  categorie.add(opt);
+});
 
-  updateSousCat();
-  loadData();
-  loadClients();
-  generateNumber();
-};
+categorie.onchange = updateSousCat;
+updateSousCat();
 
+// ================= FUNCTIONS =================
+
+function showError(msg){ alert("⚠️ "+msg); }
+
+// ---- Sous catégories
 function updateSousCat(){
-  souscat.innerHTML = "";
+  souscat.innerHTML="";
   data[categorie.value].forEach(item=>{
-    let opt = document.createElement("option");
-    opt.text = item.nom;
-    opt.dataset.prix = item.prix;
+    let opt=document.createElement("option");
+    opt.text=item.nom;
+    opt.dataset.prix=item.prix;
     souscat.add(opt);
   });
   updatePrix();
@@ -135,175 +117,136 @@ function updatePrix(){
   prix.value = souscat.options[souscat.selectedIndex].dataset.prix;
 }
 
-function add(){
+souscat.onchange = updatePrix;
+
+// ---- Ajouter prestation
+document.getElementById("addBtn").onclick = function(){
+
   let q = parseFloat(qte.value);
   let p = parseFloat(prix.value);
 
-  if(isNaN(q) || q <= 0) return showError("Quantité invalide");
-  if(isNaN(p) || p <= 0) return showError("Prix invalide");
+  if(isNaN(q) || q<=0) return showError("Quantité invalide");
 
-  prestations.push({desc:souscat.value,qte:q,prix:p,total:q*p});
+  prestations.push({
+    desc:souscat.value,
+    qte:q,
+    prix:p,
+    total:q*p
+  });
+
   afficher();
-  qte.value = "";
-}
+};
 
+// ---- Affichage
 function afficher(){
   liste.innerHTML="";
   prestations.forEach((p,i)=>{
-    liste.innerHTML += `<div class="line">${p.desc} ${p.qte} x ${p.prix}€ = ${p.total.toFixed(2)}€ <button onclick="del(${i})">❌</button></div>`;
+    let div=document.createElement("div");
+    div.className="line";
+    div.innerHTML=`${p.desc} ${p.qte} x ${p.prix}€ = ${p.total.toFixed(2)}€ 
+    <button onclick="del(${i})">❌</button>`;
+    liste.appendChild(div);
   });
-  updateTotal();
-  saveData();
+
+  let total = prestations.reduce((s,p)=>s+p.total,0);
+  totalBox.innerText = "Total : "+total.toFixed(2)+"€";
 }
 
-function updateTotal(){
-  let t = prestations.reduce((s,p)=>s+p.total,0);
-  totalBox.innerText = "Total : "+t.toFixed(2)+"€";
+// ---- Delete
+function del(i){
+  prestations.splice(i,1);
+  afficher();
 }
 
-function del(i){ prestations.splice(i,1); afficher(); }
+// ---- Clients
+document.getElementById("saveClientBtn").onclick = function(){
 
-function saveData(){ localStorage.setItem("prestations",JSON.stringify(prestations)); }
-function loadData(){ let s=localStorage.getItem("prestations"); if(s){ prestations=JSON.parse(s); afficher(); } }
+  if(!clientNom.value) return showError("Nom requis");
 
-function saveClient(){
-  if(!clientNom.value.trim()) return showError("Nom obligatoire");
-  if(!clientAdresse.value.trim()) return showError("Adresse obligatoire");
-  if(!clientContact.value.trim()) return showError("Contact obligatoire");
+  let c={
+    nom:clientNom.value,
+    adresse:clientAdresse.value,
+    contact:clientContact.value
+  };
 
-  let c={nom:clientNom.value,adresse:clientAdresse.value,siret:clientSiret.value,contact:clientContact.value};
   clients.push(c);
-  localStorage.setItem("clients",JSON.stringify(clients));
   updateClientList();
-  alert("✅ Client enregistré");
-}
-
-function loadClient(){
-  let i=clientList.value;
-  if(i==="") return;
-  let c=clients[i];
-  clientNom.value=c.nom;
-  clientAdresse.value=c.adresse;
-  clientSiret.value=c.siret;
-  clientContact.value=c.contact;
-}
+};
 
 function updateClientList(){
-  clientList.innerHTML='<option value="">-- Choisir un client --</option>';
+  clientList.innerHTML="";
   clients.forEach((c,i)=>{
-    let o=document.createElement("option"); o.value=i; o.text=c.nom; clientList.add(o);
+    let opt=document.createElement("option");
+    opt.value=i;
+    opt.text=c.nom;
+    clientList.add(opt);
   });
 }
 
-function loadClients(){ let s=localStorage.getItem("clients"); if(s){ clients=JSON.parse(s); updateClientList(); } }
+clientList.onchange = function(){
+  let c = clients[clientList.value];
+  if(!c) return;
+  clientNom.value=c.nom;
+  clientAdresse.value=c.adresse;
+  clientContact.value=c.contact;
+};
 
-function generateNumber(){
-  let count=localStorage.getItem("docCount")||1;
-  let prefix=typeDoc.value==="DEVIS"?"DEVIS":"FACT";
-  numero.value=prefix+"-"+String(count).padStart(3,"0");
-  localStorage.setItem("docCount",parseInt(count)+1);
-}
+// ---- Logo
+document.getElementById("logoInput").addEventListener("change", e=>{
+  let reader = new FileReader();
+  reader.onload = e=> logoBase64 = e.target.result;
+  reader.readAsDataURL(e.target.files[0]);
+});
 
-function generatePDF(){
+// ---- PDF
+document.getElementById("pdfBtn").onclick = function(){
 
-  if(!clientNom.value.trim()) return showError("Client manquant");
-  if(prestations.length === 0) return showError("Ajoute une prestation");
+  if(!clientNom.value) return showError("Client manquant");
+  if(prestations.length===0) return showError("Aucune prestation");
 
   const { jsPDF } = window.jspdf;
   let doc = new jsPDF();
 
-  let pageWidth = doc.internal.pageSize.getWidth();
+  let y=20;
 
-  // 🖼️ LOGO
   if(logoBase64){
-    doc.addImage(logoBase64, 'PNG', pageWidth/2 - 25, 10, 50, 20);
+    doc.addImage(logoBase64,'PNG',80,10,50,20);
+    y+=20;
   }
 
-  // 🏢 ENTREPRISE
-  doc.setFontSize(10);
-  doc.text("URBANSPORTALENT", 10, 40);
-  doc.text("50 rue casanova", 10, 45);
-  doc.text("34070 Montpellier - France", 10, 50);
-  doc.text("Tél : 0783804086", 10, 55);
-  doc.text("Email : urbansportalent.contact@gmail.com", 10, 60);
-  doc.text("SIRET : 98855780700019", 10, 65);
+  doc.text(typeDoc.value+" "+numero.value,10,y);
+  y+=10;
 
-  // 🧾 DOC INFO
-  doc.setFontSize(14);
-  doc.text(typeDoc.value + " N° " + numero.value, 130, 40);
+  doc.text(clientNom.value,10,y);
+  y+=10;
 
-  doc.setFontSize(10);
-  let date = new Date().toLocaleDateString();
-  doc.text("Date : " + date, 130, 45);
-
-  // 👤 CLIENT
-  doc.text("CLIENT :", 130, 60);
-  doc.text(clientNom.value, 130, 65);
-  doc.text(clientAdresse.value, 130, 70);
-  doc.text(clientContact.value, 130, 75);
-
-  // 📊 TABLEAU
-  let tableData = [];
-  let total = 0;
+  let table=[];
+  let total=0;
 
   prestations.forEach(p=>{
-    tableData.push([
-      p.desc,
-      p.qte,
-      p.prix.toFixed(2) + "€",
-      p.total.toFixed(2) + "€"
-    ]);
-    total += p.total;
+    table.push([p.desc,p.qte,p.prix,p.total]);
+    total+=p.total;
   });
 
   doc.autoTable({
-    startY: 90,
-    head: [["Désignation", "Qté", "Prix U", "Total"]],
-    body: tableData,
-    theme: "grid",
-    styles: {
-      fontSize: 10,
-      cellPadding: 3
-    },
-    headStyles: {
-      fillColor: [0,0,0]
-    },
-    columnStyles: {
-      1: {halign: 'center'},
-      2: {halign: 'right'},
-      3: {halign: 'right'}
-    }
+    startY:y,
+    head:[["Désignation","Qté","Prix","Total"]],
+    body:table
   });
 
   let finalY = doc.lastAutoTable.finalY + 10;
 
-  // 💰 TOTALS
-  let remiseVal = parseFloat(remise.value) || 0;
-  let rem = total * (remiseVal/100);
+  let rem = (parseFloat(remise.value)||0)/100 * total;
   let final = total - rem;
 
-  doc.setFontSize(11);
-  doc.text("Total HT : " + total.toFixed(2) + "€", 130, finalY);
-  doc.text("Remise : -" + rem.toFixed(2) + "€", 130, finalY + 7);
+  doc.text("Total : "+total.toFixed(2)+"€",130,finalY);
+  doc.text("Remise : -"+rem.toFixed(2)+"€",130,finalY+7);
+  doc.text("Final : "+final.toFixed(2)+"€",130,finalY+14);
 
-  doc.setFontSize(13);
-  doc.text("TOTAL : " + final.toFixed(2) + "€", 130, finalY + 15);
+  doc.save("document.pdf");
+};
 
-  // ⚖️ MENTIONS
-  let footerY = finalY + 35;
+</script>
 
-  doc.setFontSize(9);
-  doc.text("TVA non applicable, art. 293 B du CGI", 10, footerY);
-  doc.text("Pénalités de retard : 3x le taux légal (L441-10)", 10, footerY + 5);
-
-  doc.text("Licence non exclusive.", 10, footerY + 15);
-  doc.text("Droits d'exploitation commercial autorisés.", 10, footerY + 20);
-  doc.text("Mention obligatoire : UrbanSportTalent.", 10, footerY + 25);
-
-  // 📄 FOOTER PAGE
-  doc.setFontSize(8);
-  doc.text("UrbanSportTalent - Page 1/1", pageWidth/2 - 20, 290);
-
-  // 💾 SAVE
-  doc.save(typeDoc.value + "_" + numero.value + ".pdf");
-}
+</body>
+</html>
