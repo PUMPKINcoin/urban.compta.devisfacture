@@ -2,19 +2,20 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>UrbanSportTalent App</title>
+<title>UrbanSportTalent - App PRO</title>
 
+<!-- LIBS OK ORDER -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
 <style>
-body {font-family: Arial; background:#0d0d0d; color:white; padding:20px;}
-.container {max-width:700px; margin:auto;}
-.card {background:#1a1a1a; padding:20px; border-radius:10px;}
-input, select {width:100%; padding:10px; margin-top:10px; background:#111; color:white; border:1px solid #333; border-radius:5px;}
-button {margin-top:10px; padding:10px; width:100%; background:red; color:white; border:none; border-radius:5px;}
-.line {display:flex; justify-content:space-between; margin-top:5px;}
-.total {font-size:20px; margin-top:10px;}
+body{font-family:Arial;background:#0d0d0d;color:#fff;padding:20px}
+.container{max-width:700px;margin:auto}
+.card{background:#1a1a1a;padding:20px;border-radius:10px}
+input,select{width:100%;padding:10px;margin-top:10px;background:#111;color:#fff;border:1px solid #333;border-radius:5px}
+button{margin-top:10px;padding:10px;width:100%;background:red;color:#fff;border:none;border-radius:5px;cursor:pointer}
+.line{display:flex;justify-content:space-between;margin-top:5px}
+.total{font-size:20px;margin-top:10px}
 </style>
 </head>
 
@@ -27,11 +28,10 @@ button {margin-top:10px; padding:10px; width:100%; background:red; color:white; 
 <option>FACTURE</option>
 </select>
 
-<input id="numero" placeholder="Numéro">
-
+<input id="numero" placeholder="Numéro auto">
 <input type="file" id="logoInput">
 
-<select id="clientList"></select>
+<select id="clientList"><option value="">-- Client --</option></select>
 
 <input id="clientNom" placeholder="Nom">
 <input id="clientAdresse" placeholder="Adresse">
@@ -59,49 +59,77 @@ button {margin-top:10px; padding:10px; width:100%; background:red; color:white; 
 
 <script>
 
-// ================= DATA =================
+// ===== STATE =====
+let prestations=[];
+let clients=[];
+let logoBase64="";
+
+// ===== DATA =====
 let data = {
-  "Conception":[{nom:"Script",prix:19.9},{nom:"Storyboard",prix:54.9}],
-  "Production":[{nom:"Montage",prix:69.9}]
+  "Conception": [
+    { nom: "Script", prix: 19.90 },
+    { nom: "Storyboard", prix: 54.90 },
+    { nom: "Réalisation", prix: 74.90 }
+  ],
+  "Captation audiovisuelle": [
+    { nom: "Captation fixe", prix: 190.90 },
+    { nom: "Captation mobile", prix: 118.90 },
+    { nom: "Plan aérien drone", prix: 290.90 },
+    { nom: "Interview", prix: 89.90 }
+  ],
+  "Production": [
+    { nom: "Dérushage", prix: 44.90 },
+    { nom: "Montage", prix: 69.90 },
+    { nom: "Étalonnage", prix: 14.90 },
+    { nom: "Traitement audio", prix: 14.90 },
+    { nom: "Colorimétrie", prix: 79.90 }
+  ],
+  "Editing": [
+    { nom: "Sous-titres & traduction", prix: 27.90 },
+    { nom: "Mise au format livrable", prix: 9.90 }
+  ],
+  "Diffusion": [
+    { nom: "Publication Snapchat", prix: 6.90 },
+    { nom: "Publication Instagram/Facebook", prix: 25.90 },
+    { nom: "Publication TikTok", prix: 14.50 }
+]
 };
 
-// ================= STATE =================
-let prestations = [];
-let clients = [];
-let logoBase64 = "";
+// ===== DOM =====
+const categorie=document.getElementById("categorie");
+const souscat=document.getElementById("souscat");
+const qte=document.getElementById("qte");
+const prix=document.getElementById("prix");
+const liste=document.getElementById("liste");
+const totalBox=document.getElementById("totalBox");
 
-// ================= DOM =================
-let categorie = document.getElementById("categorie");
-let souscat = document.getElementById("souscat");
-let qte = document.getElementById("qte");
-let prix = document.getElementById("prix");
-let liste = document.getElementById("liste");
-let totalBox = document.getElementById("totalBox");
+const clientNom=document.getElementById("clientNom");
+const clientAdresse=document.getElementById("clientAdresse");
+const clientContact=document.getElementById("clientContact");
+const clientList=document.getElementById("clientList");
 
-let clientNom = document.getElementById("clientNom");
-let clientAdresse = document.getElementById("clientAdresse");
-let clientContact = document.getElementById("clientContact");
-let clientList = document.getElementById("clientList");
+const typeDoc=document.getElementById("typeDoc");
+const numero=document.getElementById("numero");
+const remise=document.getElementById("remise");
 
-let typeDoc = document.getElementById("typeDoc");
-let numero = document.getElementById("numero");
-let remise = document.getElementById("remise");
+// ===== INIT =====
+function init(){
+  Object.keys(data).forEach(cat=>{
+    let opt=document.createElement("option");
+    opt.value=cat;
+    opt.text=cat;
+    categorie.add(opt);
+  });
 
-// ================= INIT =================
-Object.keys(data).forEach(cat=>{
-  let opt = document.createElement("option");
-  opt.text = cat;
-  categorie.add(opt);
-});
+  updateSousCat();
+  loadClients();
+  generateNumber();
+}
 
-categorie.onchange = updateSousCat;
-updateSousCat();
+// ===== VALID =====
+function err(msg){alert("⚠️ "+msg)}
 
-// ================= FUNCTIONS =================
-
-function showError(msg){ alert("⚠️ "+msg); }
-
-// ---- Sous catégories
+// ===== CAT =====
 function updateSousCat(){
   souscat.innerHTML="";
   data[categorie.value].forEach(item=>{
@@ -114,67 +142,60 @@ function updateSousCat(){
 }
 
 function updatePrix(){
-  prix.value = souscat.options[souscat.selectedIndex].dataset.prix;
+  prix.value=souscat.options[souscat.selectedIndex].dataset.prix;
 }
 
-souscat.onchange = updatePrix;
+categorie.onchange=updateSousCat;
+souscat.onchange=updatePrix;
 
-// ---- Ajouter prestation
-document.getElementById("addBtn").onclick = function(){
+// ===== ADD =====
+document.getElementById("addBtn").onclick=()=>{
+  let q=parseFloat(qte.value);
+  let p=parseFloat(prix.value);
 
-  let q = parseFloat(qte.value);
-  let p = parseFloat(prix.value);
+  if(isNaN(q)||q<=0) return err("Quantité invalide");
 
-  if(isNaN(q) || q<=0) return showError("Quantité invalide");
-
-  prestations.push({
-    desc:souscat.value,
-    qte:q,
-    prix:p,
-    total:q*p
-  });
-
-  afficher();
+  prestations.push({desc:souscat.value,qte:q,prix:p,total:q*p});
+  render();
 };
 
-// ---- Affichage
-function afficher(){
+// ===== RENDER =====
+function render(){
   liste.innerHTML="";
+
   prestations.forEach((p,i)=>{
     let div=document.createElement("div");
     div.className="line";
-    div.innerHTML=`${p.desc} ${p.qte} x ${p.prix}€ = ${p.total.toFixed(2)}€ 
-    <button onclick="del(${i})">❌</button>`;
+    div.innerHTML=`${p.desc} ${p.qte} x ${p.prix}€ = ${p.total.toFixed(2)}€ <button onclick="removeItem(${i})">❌</button>`;
     liste.appendChild(div);
   });
 
-  let total = prestations.reduce((s,p)=>s+p.total,0);
-  totalBox.innerText = "Total : "+total.toFixed(2)+"€";
+  let total=prestations.reduce((s,p)=>s+p.total,0);
+  totalBox.innerText="Total : "+total.toFixed(2)+"€";
 }
 
-// ---- Delete
-function del(i){
+window.removeItem=function(i){
   prestations.splice(i,1);
-  afficher();
+  render();
 }
 
-// ---- Clients
-document.getElementById("saveClientBtn").onclick = function(){
+// ===== CLIENT =====
+document.getElementById("saveClientBtn").onclick=()=>{
+  if(!clientNom.value.trim()) return err("Nom requis");
 
-  if(!clientNom.value) return showError("Nom requis");
-
-  let c={
-    nom:clientNom.value,
-    adresse:clientAdresse.value,
-    contact:clientContact.value
-  };
-
+  let c={nom:clientNom.value,adresse:clientAdresse.value,contact:clientContact.value};
   clients.push(c);
-  updateClientList();
+
+  localStorage.setItem("clients",JSON.stringify(clients));
+  loadClients();
 };
 
-function updateClientList(){
-  clientList.innerHTML="";
+function loadClients(){
+  let saved=localStorage.getItem("clients");
+  if(saved) clients=JSON.parse(saved);
+
+  clientList.innerHTML='<option value="">-- Client --</option>';
+
   clients.forEach((c,i)=>{
     let opt=document.createElement("option");
     opt.value=i;
@@ -183,70 +204,88 @@ function updateClientList(){
   });
 }
 
-clientList.onchange = function(){
-  let c = clients[clientList.value];
+clientList.onchange=()=>{
+  let c=clients[clientList.value];
   if(!c) return;
   clientNom.value=c.nom;
   clientAdresse.value=c.adresse;
   clientContact.value=c.contact;
-};
+}
 
-// ---- Logo
-document.getElementById("logoInput").addEventListener("change", e=>{
-  let reader = new FileReader();
-  reader.onload = e=> logoBase64 = e.target.result;
+// ===== LOGO =====
+document.getElementById("logoInput").addEventListener("change",e=>{
+  let reader=new FileReader();
+  reader.onload=e=>logoBase64=e.target.result;
   reader.readAsDataURL(e.target.files[0]);
 });
 
-// ---- PDF
-document.getElementById("pdfBtn").onclick = function(){
+// ===== NUMERO =====
+function generateNumber(){
+  let n=localStorage.getItem("num")||1;
+  numero.value=(typeDoc.value==="DEVIS"?"DEVIS":"FACT")+"-"+String(n).padStart(3,"0");
+  localStorage.setItem("num",parseInt(n)+1);
+}
 
-  if(!clientNom.value) return showError("Client manquant");
-  if(prestations.length===0) return showError("Aucune prestation");
+typeDoc.onchange=generateNumber;
 
-  const { jsPDF } = window.jspdf;
-  let doc = new jsPDF();
+// ===== PDF =====
+document.getElementById("pdfBtn").onclick=()=>{
+  try{
+    if(!clientNom.value.trim()) return err("Client manquant");
+    if(prestations.length===0) return err("Aucune prestation");
 
-  let y=20;
+    const { jsPDF } = window.jspdf;
+    let doc=new jsPDF();
 
-  if(logoBase64){
-    doc.addImage(logoBase64,'PNG',80,10,50,20);
-    y+=20;
+    let pageWidth=doc.internal.pageSize.getWidth();
+
+    if(logoBase64){
+      doc.addImage(logoBase64,'PNG',pageWidth/2-25,10,50,20);
+    }
+
+    doc.setFontSize(16);
+    doc.text(typeDoc.value+" "+numero.value,10,20);
+
+    doc.setFontSize(10);
+    doc.text("Client : "+clientNom.value,10,30);
+
+    let table=[];
+    let total=0;
+
+    prestations.forEach(p=>{
+      table.push([p.desc,p.qte,p.prix.toFixed(2)+"€",p.total.toFixed(2)+"€"]);
+      total+=p.total;
+    });
+
+    doc.autoTable({
+      startY:40,
+      head:[["Désignation","Qté","PU","Total"]],
+      body:table
+    });
+
+    let y=doc.lastAutoTable.finalY+10;
+
+    let rem=(parseFloat(remise.value)||0)/100*total;
+    let final=total-rem;
+
+    doc.text("Total : "+total.toFixed(2)+"€",130,y);
+    doc.text("Remise : -"+rem.toFixed(2)+"€",130,y+7);
+    doc.text("TOTAL : "+final.toFixed(2)+"€",130,y+14);
+
+    doc.setFontSize(8);
+    doc.text("TVA non applicable, art. 293 B du CGI",10,y+30);
+    doc.text("UrbanSportTalent",pageWidth/2-20,290);
+
+    doc.save("document.pdf");
+
+  }catch(e){
+    console.error(e);
+    alert("Erreur PDF");
   }
+}
 
-  doc.text(typeDoc.value+" "+numero.value,10,y);
-  y+=10;
-
-  doc.text(clientNom.value,10,y);
-  y+=10;
-
-  let table=[];
-  let total=0;
-
-  prestations.forEach(p=>{
-    table.push([p.desc,p.qte,p.prix,p.total]);
-    total+=p.total;
-  });
-
-  doc.autoTable({
-    startY:y,
-    head:[["Désignation","Qté","Prix","Total"]],
-    body:table
-  });
-
-  let finalY = doc.lastAutoTable.finalY + 10;
-
-  let rem = (parseFloat(remise.value)||0)/100 * total;
-  let final = total - rem;
-
-  doc.text("Total : "+total.toFixed(2)+"€",130,finalY);
-  doc.text("Remise : -"+rem.toFixed(2)+"€",130,finalY+7);
-  doc.text("Final : "+final.toFixed(2)+"€",130,finalY+14);
-
-  doc.save("document.pdf");
-};
+init();
 
 </script>
-
 </body>
 </html>
