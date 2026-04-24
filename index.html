@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>UrbanSportTalent - Business App</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 <style>
 body {font-family: Arial; background:#0d0d0d; color:white; padding:20px;}
 .container {max-width:700px; margin:auto;}
@@ -205,34 +205,105 @@ function generateNumber(){
 }
 
 function generatePDF(){
+
   if(!clientNom.value.trim()) return showError("Client manquant");
   if(prestations.length === 0) return showError("Ajoute une prestation");
 
   const { jsPDF } = window.jspdf;
-  let doc=new jsPDF();
-  let y=20;
+  let doc = new jsPDF();
 
-  doc.text(typeDoc.value+" "+numero.value,10,y);
-  y+=10;
-  doc.text(clientNom.value,10,y);
-  y+=10;
+  let pageWidth = doc.internal.pageSize.getWidth();
+
+  // 🖼️ LOGO
+  if(logoBase64){
+    doc.addImage(logoBase64, 'PNG', pageWidth/2 - 25, 10, 50, 20);
+  }
+
+  // 🏢 ENTREPRISE
+  doc.setFontSize(10);
+  doc.text("URBANSPORTALENT", 10, 40);
+  doc.text("50 rue casanova", 10, 45);
+  doc.text("34070 Montpellier - France", 10, 50);
+  doc.text("Tél : 0783804086", 10, 55);
+  doc.text("Email : urbansportalent.contact@gmail.com", 10, 60);
+  doc.text("SIRET : 98855780700019", 10, 65);
+
+  // 🧾 DOC INFO
+  doc.setFontSize(14);
+  doc.text(typeDoc.value + " N° " + numero.value, 130, 40);
+
+  doc.setFontSize(10);
+  let date = new Date().toLocaleDateString();
+  doc.text("Date : " + date, 130, 45);
+
+  // 👤 CLIENT
+  doc.text("CLIENT :", 130, 60);
+  doc.text(clientNom.value, 130, 65);
+  doc.text(clientAdresse.value, 130, 70);
+  doc.text(clientContact.value, 130, 75);
+
+  // 📊 TABLEAU
+  let tableData = [];
+  let total = 0;
 
   prestations.forEach(p=>{
-    doc.text(`${p.desc} ${p.qte} x ${p.prix}€ = ${p.total.toFixed(2)}€`,10,y);
-    y+=7;
+    tableData.push([
+      p.desc,
+      p.qte,
+      p.prix.toFixed(2) + "€",
+      p.total.toFixed(2) + "€"
+    ]);
+    total += p.total;
   });
 
-  let total=prestations.reduce((s,p)=>s+p.total,0);
-  let rem=(parseFloat(remise.value)||0)/100*total;
-  let final=total-rem;
+  doc.autoTable({
+    startY: 90,
+    head: [["Désignation", "Qté", "Prix U", "Total"]],
+    body: tableData,
+    theme: "grid",
+    styles: {
+      fontSize: 10,
+      cellPadding: 3
+    },
+    headStyles: {
+      fillColor: [0,0,0]
+    },
+    columnStyles: {
+      1: {halign: 'center'},
+      2: {halign: 'right'},
+      3: {halign: 'right'}
+    }
+  });
 
-  y+=10;
-  doc.text("Total: "+total.toFixed(2)+"€",10,y);
-  doc.text("Remise: -"+rem.toFixed(2)+"€",10,y+7);
-  doc.text("Final: "+final.toFixed(2)+"€",10,y+14);
+  let finalY = doc.lastAutoTable.finalY + 10;
 
-  doc.save("document.pdf");
+  // 💰 TOTALS
+  let remiseVal = parseFloat(remise.value) || 0;
+  let rem = total * (remiseVal/100);
+  let final = total - rem;
+
+  doc.setFontSize(11);
+  doc.text("Total HT : " + total.toFixed(2) + "€", 130, finalY);
+  doc.text("Remise : -" + rem.toFixed(2) + "€", 130, finalY + 7);
+
+  doc.setFontSize(13);
+  doc.text("TOTAL : " + final.toFixed(2) + "€", 130, finalY + 15);
+
+  // ⚖️ MENTIONS
+  let footerY = finalY + 35;
+
+  doc.setFontSize(9);
+  doc.text("TVA non applicable, art. 293 B du CGI", 10, footerY);
+  doc.text("Pénalités de retard : 3x le taux légal (L441-10)", 10, footerY + 5);
+
+  doc.text("Licence non exclusive.", 10, footerY + 15);
+  doc.text("Droits d'exploitation commercial autorisés.", 10, footerY + 20);
+  doc.text("Mention obligatoire : UrbanSportTalent.", 10, footerY + 25);
+
+  // 📄 FOOTER PAGE
+  doc.setFontSize(8);
+  doc.text("UrbanSportTalent - Page 1/1", pageWidth/2 - 20, 290);
+
+  // 💾 SAVE
+  doc.save(typeDoc.value + "_" + numero.value + ".pdf");
 }
-</script>
-</body>
-</html>
