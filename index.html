@@ -10,6 +10,7 @@ body {font-family: Arial; background:#0d0d0d; color:white; padding:20px;}
 .card {background:#1a1a1a; padding:20px; border-radius:10px;}
 input, select {width:100%; padding:10px; margin-top:10px; background:#111; color:white; border:1px solid #333; border-radius:5px;}
 button {margin-top:10px; padding:10px; width:100%; background:red; color:white; border:none; border-radius:5px;}
+button:disabled {background: gray; cursor: not-allowed;}
 .line {display:flex; justify-content:space-between; margin-top:5px;}
 .total {font-size:20px; margin-top:10px;}
 </style>
@@ -63,6 +64,9 @@ button {margin-top:10px; padding:10px; width:100%; background:red; color:white; 
 let prestations = [];
 let clients = [];
 
+let clientNom, clientAdresse, clientSiret, clientContact;
+let clientList, categorie, souscat, qte, prix, liste, totalBox, typeDoc, numero, remise;
+
 let data = {
   "Conception": [
     { nom: "Script", prix: 19.90 },
@@ -92,6 +96,30 @@ let data = {
   ]
 };
 
+function showError(msg){ alert("⚠️ " + msg); }
+
+window.onload = function(){
+  clientNom = document.getElementById("clientNom");
+  clientAdresse = document.getElementById("clientAdresse");
+  clientSiret = document.getElementById("clientSiret");
+  clientContact = document.getElementById("clientContact");
+  clientList = document.getElementById("clientList");
+  categorie = document.getElementById("categorie");
+  souscat = document.getElementById("souscat");
+  qte = document.getElementById("qte");
+  prix = document.getElementById("prix");
+  liste = document.getElementById("liste");
+  totalBox = document.getElementById("totalBox");
+  typeDoc = document.getElementById("typeDoc");
+  numero = document.getElementById("numero");
+  remise = document.getElementById("remise");
+
+  updateSousCat();
+  loadData();
+  loadClients();
+  generateNumber();
+};
+
 function updateSousCat(){
   souscat.innerHTML = "";
   data[categorie.value].forEach(item=>{
@@ -110,9 +138,13 @@ function updatePrix(){
 function add(){
   let q = parseFloat(qte.value);
   let p = parseFloat(prix.value);
-  if(isNaN(q)) return;
+
+  if(isNaN(q) || q <= 0) return showError("Quantité invalide");
+  if(isNaN(p) || p <= 0) return showError("Prix invalide");
+
   prestations.push({desc:souscat.value,qte:q,prix:p,total:q*p});
   afficher();
+  qte.value = "";
 }
 
 function afficher(){
@@ -129,21 +161,26 @@ function updateTotal(){
   totalBox.innerText = "Total : "+t.toFixed(2)+"€";
 }
 
-function del(i){prestations.splice(i,1);afficher();}
+function del(i){ prestations.splice(i,1); afficher(); }
 
-function saveData(){localStorage.setItem("prestations",JSON.stringify(prestations));}
-function loadData(){let s=localStorage.getItem("prestations");if(s){prestations=JSON.parse(s);afficher();}}
+function saveData(){ localStorage.setItem("prestations",JSON.stringify(prestations)); }
+function loadData(){ let s=localStorage.getItem("prestations"); if(s){ prestations=JSON.parse(s); afficher(); } }
 
 function saveClient(){
+  if(!clientNom.value.trim()) return showError("Nom obligatoire");
+  if(!clientAdresse.value.trim()) return showError("Adresse obligatoire");
+  if(!clientContact.value.trim()) return showError("Contact obligatoire");
+
   let c={nom:clientNom.value,adresse:clientAdresse.value,siret:clientSiret.value,contact:clientContact.value};
   clients.push(c);
   localStorage.setItem("clients",JSON.stringify(clients));
   updateClientList();
+  alert("✅ Client enregistré");
 }
 
 function loadClient(){
   let i=clientList.value;
-  if(i==="")return;
+  if(i==="") return;
   let c=clients[i];
   clientNom.value=c.nom;
   clientAdresse.value=c.adresse;
@@ -154,11 +191,11 @@ function loadClient(){
 function updateClientList(){
   clientList.innerHTML='<option value="">-- Choisir un client --</option>';
   clients.forEach((c,i)=>{
-    let o=document.createElement("option");o.value=i;o.text=c.nom;clientList.add(o);
+    let o=document.createElement("option"); o.value=i; o.text=c.nom; clientList.add(o);
   });
 }
 
-function loadClients(){let s=localStorage.getItem("clients");if(s){clients=JSON.parse(s);updateClientList();}}
+function loadClients(){ let s=localStorage.getItem("clients"); if(s){ clients=JSON.parse(s); updateClientList(); } }
 
 function generateNumber(){
   let count=localStorage.getItem("docCount")||1;
@@ -168,6 +205,9 @@ function generateNumber(){
 }
 
 function generatePDF(){
+  if(!clientNom.value.trim()) return showError("Client manquant");
+  if(prestations.length === 0) return showError("Ajoute une prestation");
+
   const { jsPDF } = window.jspdf;
   let doc=new jsPDF();
   let y=20;
@@ -191,20 +231,8 @@ function generatePDF(){
   doc.text("Remise: -"+rem.toFixed(2)+"€",10,y+7);
   doc.text("Final: "+final.toFixed(2)+"€",10,y+14);
 
-  let blob=doc.output("blob");
-  let file=new File([blob],"doc.pdf",{type:"application/pdf"});
-
-  if(navigator.share){
-    navigator.share({files:[file]});
-  } else {
-    doc.save("document.pdf");
-  }
+  doc.save("document.pdf");
 }
-
-updateSousCat();
-loadData();
-loadClients();
-generateNumber();
 </script>
 </body>
 </html>
