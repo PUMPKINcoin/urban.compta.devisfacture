@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>UrbanSportTalent - Business App</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+body {font-family: Arial; background:#0d0d0d; color:white; padding:20px;}
+.container {max-width:700px; margin:auto;}
+.card {background:#1a1a1a; padding:20px; border-radius:10px;}
+input, select {width:100%; padding:10px; margin-top:10px; background:#111; color:white; border:1px solid #333; border-radius:5px;}
+button {margin-top:10px; padding:10px; width:100%; background:red; color:white; border:none; border-radius:5px;}
+.line {display:flex; justify-content:space-between; margin-top:5px;}
+.total {font-size:20px; margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="card">
+
+<select id="typeDoc" onchange="generateNumber()">
+<option>DEVIS</option>
+<option>FACTURE</option>
+</select>
+
+<input id="numero">
+
+<select id="clientList" onchange="loadClient()">
+<option value="">-- Choisir un client --</option>
+</select>
+
+<input id="clientNom" placeholder="Nom">
+<input id="clientAdresse" placeholder="Adresse">
+<input id="clientSiret" placeholder="SIRET">
+<input id="clientContact" placeholder="Contact">
+
+<button onclick="saveClient()">💾 Enregistrer client</button>
+
+<select id="categorie" onchange="updateSousCat()">
+<option>Conception</option>
+<option>Captation audiovisuelle</option>
+<option>Production</option>
+<option>Editing</option>
+<option>Diffusion</option>
+</select>
+
+<select id="souscat" onchange="updatePrix()"></select>
+<input id="qte" type="number" placeholder="Quantité">
+<input id="prix" readonly>
+
+<button onclick="add()">Ajouter</button>
+
+<div id="liste"></div>
+<div id="totalBox" class="total">Total : 0€</div>
+
+<input id="remise" type="number" placeholder="Remise %">
+<button onclick="generatePDF()">📄 Générer PDF</button>
+
+</div>
+</div>
+
+<script>
+let prestations = [];
+let clients = [];
+
+let data = {
+  "Conception": [
+    { nom: "Script", prix: 19.90 },
+    { nom: "Storyboard", prix: 54.90 },
+    { nom: "Réalisation", prix: 74.90 }
+  ],
+  "Captation audiovisuelle": [
+    { nom: "Fixe", prix: 190.90 },
+    { nom: "Mobile", prix: 118.90 },
+    { nom: "Drone", prix: 290.90 },
+    { nom: "Interview", prix: 89.90 }
+  ],
+  "Production": [
+    { nom: "Dérushage", prix: 44.90 },
+    { nom: "Montage", prix: 69.90 },
+    { nom: "Étalonnage", prix: 14.90 },
+    { nom: "Audio", prix: 14.90 },
+    { nom: "Colorimétrie", prix: 79.90 }
+  ],
+  "Editing": [
+    { nom: "Sous-titres", prix: 27.90 },
+    { nom: "Traduction", prix: 17.90 },
+    { nom: "Format livrable", prix: 0.90 }
+  ],
+  "Diffusion": [
+    { nom: "Publication", prix: 0 }
+  ]
+};
+
+function updateSousCat(){
+  souscat.innerHTML = "";
+  data[categorie.value].forEach(item=>{
+    let opt = document.createElement("option");
+    opt.text = item.nom;
+    opt.dataset.prix = item.prix;
+    souscat.add(opt);
+  });
+  updatePrix();
+}
+
+function updatePrix(){
+  prix.value = souscat.options[souscat.selectedIndex].dataset.prix;
+}
+
+function add(){
+  let q = parseFloat(qte.value);
+  let p = parseFloat(prix.value);
+  if(isNaN(q)) return;
+  prestations.push({desc:souscat.value,qte:q,prix:p,total:q*p});
+  afficher();
+}
+
+function afficher(){
+  liste.innerHTML="";
+  prestations.forEach((p,i)=>{
+    liste.innerHTML += `<div class="line">${p.desc} ${p.qte} x ${p.prix}€ = ${p.total.toFixed(2)}€ <button onclick="del(${i})">❌</button></div>`;
+  });
+  updateTotal();
+  saveData();
+}
+
+function updateTotal(){
+  let t = prestations.reduce((s,p)=>s+p.total,0);
+  totalBox.innerText = "Total : "+t.toFixed(2)+"€";
+}
+
+function del(i){prestations.splice(i,1);afficher();}
+
+function saveData(){localStorage.setItem("prestations",JSON.stringify(prestations));}
+function loadData(){let s=localStorage.getItem("prestations");if(s){prestations=JSON.parse(s);afficher();}}
+
+function saveClient(){
+  let c={nom:clientNom.value,adresse:clientAdresse.value,siret:clientSiret.value,contact:clientContact.value};
+  clients.push(c);
+  localStorage.setItem("clients",JSON.stringify(clients));
+  updateClientList();
+}
+
+function loadClient(){
+  let i=clientList.value;
+  if(i==="")return;
+  let c=clients[i];
+  clientNom.value=c.nom;
+  clientAdresse.value=c.adresse;
+  clientSiret.value=c.siret;
+  clientContact.value=c.contact;
+}
+
+function updateClientList(){
+  clientList.innerHTML='<option value="">-- Choisir un client --</option>';
+  clients.forEach((c,i)=>{
+    let o=document.createElement("option");o.value=i;o.text=c.nom;clientList.add(o);
+  });
+}
+
+function loadClients(){let s=localStorage.getItem("clients");if(s){clients=JSON.parse(s);updateClientList();}}
+
+function generateNumber(){
+  let count=localStorage.getItem("docCount")||1;
+  let prefix=typeDoc.value==="DEVIS"?"DEVIS":"FACT";
+  numero.value=prefix+"-"+String(count).padStart(3,"0");
+  localStorage.setItem("docCount",parseInt(count)+1);
+}
+
+function generatePDF(){
+  const { jsPDF } = window.jspdf;
+  let doc=new jsPDF();
+  let y=20;
+
+  doc.text(typeDoc.value+" "+numero.value,10,y);
+  y+=10;
+  doc.text(clientNom.value,10,y);
+  y+=10;
+
+  prestations.forEach(p=>{
+    doc.text(`${p.desc} ${p.qte} x ${p.prix}€ = ${p.total.toFixed(2)}€`,10,y);
+    y+=7;
+  });
+
+  let total=prestations.reduce((s,p)=>s+p.total,0);
+  let rem=(parseFloat(remise.value)||0)/100*total;
+  let final=total-rem;
+
+  y+=10;
+  doc.text("Total: "+total.toFixed(2)+"€",10,y);
+  doc.text("Remise: -"+rem.toFixed(2)+"€",10,y+7);
+  doc.text("Final: "+final.toFixed(2)+"€",10,y+14);
+
+  let blob=doc.output("blob");
+  let file=new File([blob],"doc.pdf",{type:"application/pdf"});
+
+  if(navigator.share){
+    navigator.share({files:[file]});
+  } else {
+    doc.save("document.pdf");
+  }
+}
+
+updateSousCat();
+loadData();
+loadClients();
+generateNumber();
+</script>
+</body>
+</html>
